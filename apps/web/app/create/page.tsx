@@ -401,8 +401,92 @@ export default function CreatePage() {
     }
   };
 
-  const handleDeleteScene = (sceneId: string) => {
+  const handleDeleteScene = async (sceneId: string) => {
+    if (!project?.id) {
+      alert("Project not loaded");
+      return;
+    }
+
+    // Optimistically update UI
     setScenes((prev) => prev.filter((s) => s.id !== sceneId));
+    
+    // If selected scene is deleted, clear selection
+    if (selectedSceneId === sceneId) {
+      setSelectedSceneId(null);
+      setSelectedAssetId(null);
+    }
+
+    // Delete from backend
+    try {
+      const response = await fetch(
+        `${
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+        }/api/v1/projects/${project.id}/scenes/${sceneId}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to delete scene");
+      }
+
+      console.log(`✅ Scene ${sceneId} deleted successfully`);
+    } catch (error) {
+      console.error("Failed to delete scene:", error);
+      alert(`Failed to delete scene: ${error instanceof Error ? error.message : "Unknown error"}`);
+      
+      // Reload scenes from backend to restore state
+      try {
+        const response = await fetch(
+          `${
+            process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+          }/api/v1/projects/${project.id}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          const formattedScenes = (data.scenes || []).map((scene: any) => ({
+            id: scene._id?.toString() || scene.id,
+            text: scene.text || "",
+            duration: scene.duration || 5,
+            keywords: scene.keywords || [],
+            assets: (scene.assets || []).map((asset: any) => ({
+              id: asset._id?.toString() || asset.id,
+              type: asset.type,
+              url: asset.url,
+              thumbnailUrl: asset.thumbnailUrl,
+              name: asset.name,
+              source: asset.source,
+              x: asset.x ?? 0,
+              y: asset.y ?? 0,
+              width: asset.width ?? 100,
+              height: asset.height ?? 100,
+              scale: asset.scale ?? 1,
+              rotation: asset.rotation ?? 0,
+              opacity: asset.opacity ?? 1,
+              zIndex: asset.zIndex ?? 0,
+              startTime: asset.startTime,
+              volume: asset.volume,
+              animationType: asset.animationType || "fadeIn",
+              animationDuration: asset.animationDuration ?? 1,
+              animationDelay: asset.animationDelay ?? 0,
+              animationEasing: asset.animationEasing || "easeOut",
+            })),
+            mediaUrl: scene.mediaUrl || null,
+            voiceUrl: scene.voiceUrl || null,
+            captionsUrl: scene.captionsUrl || null,
+            captionStyle: scene.captionStyle || undefined,
+            sfxUrls: scene.sfxUrls || [],
+            transition: scene.transition || "fade",
+          }));
+          setScenes(formattedScenes);
+        }
+      } catch (reloadError) {
+        console.error("Failed to reload scenes:", reloadError);
+      }
+    }
   };
 
   const handleReorderScenes = (reorderedScenes: Scene[]) => {

@@ -623,6 +623,45 @@ router.post("/:id/voiceover", async (req, res) => {
   }
 });
 
+// Delete scene
+router.delete("/:id/scenes/:sceneId", async (req, res) => {
+  try {
+    const { sceneId } = req.params;
+    const project = await Project.findById(req.params.id);
+
+    if (!project) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    const scene = await Scene.findById(sceneId);
+    if (!scene) {
+      return res.status(404).json({ error: "Scene not found" });
+    }
+
+    // Verify scene belongs to project
+    if (scene.projectId.toString() !== project._id.toString()) {
+      return res.status(403).json({ error: "Scene does not belong to this project" });
+    }
+
+    // Delete all assets associated with this scene
+    await SceneAsset.deleteMany({ sceneId: scene._id });
+
+    // Delete the scene
+    await Scene.findByIdAndDelete(sceneId);
+
+    // Remove scene from project's scenes array
+    project.scenes = (project.scenes as any[]).filter(
+      (id) => id.toString() !== sceneId
+    );
+    await project.save();
+
+    res.json({ success: true, message: "Scene deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting scene:", error);
+    res.status(500).json({ error: "Failed to delete scene" });
+  }
+});
+
 // Update single scene script
 router.post("/:id/scenes/:sceneId/update-script", async (req, res) => {
   try {
